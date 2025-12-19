@@ -1,0 +1,6 @@
+rich
+ccxt
+pandas
+pandas-ta
+requests
+python-dotenv
