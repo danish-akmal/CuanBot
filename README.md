@@ -1,7 +1,6 @@
 # 🪙 CuanBot berbasis [Hybrid Trading Bot v7.0](https://github.com/nizardy/bot-indodax)
 
-Bot trading otomatis untuk **Indodax** berbasis Python.  
-Menggunakan indikator teknikal (EMA, ATR, Volume SMA, StochRSI) dengan manajemen risiko terintegrasi, serta notifikasi real-time via Telegram.
+Bot trading otomatis untuk **Indodax** berbasis Python. Menggunakan indikator teknikal (EMA, ATR, Volume SMA, StochRSI) dengan manajemen risiko terintegrasi, serta notifikasi real-time via Telegram.
 
 > ⚠️ **DISCLAIMER:**  
 > Bot ini dibuat untuk tujuan edukasi. Trading aset kripto memiliki risiko sangat tinggi.  
