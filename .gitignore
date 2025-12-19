@@ -1,2 +1,13 @@
-.env
-venv
+# Abaikan semua file .log
+*.log
+
+# Abaikan folder sumber
+/sumber/
+
+# Abaikan file konfigurasi lokal
+#config.local.json
+
+# Abaikan semua file di folder sumber
+sumber/
+
+.env 
