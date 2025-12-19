@@ -49,7 +49,7 @@ Bot trading otomatis untuk **Indodax** berbasis Python. Menggunakan indikator te
    ```
 4. Jalankan bot:
    ```bash
-   python hybrid_bot_v7.py
+   python ui_hybrid_bot_v7.py
    ```
 
 ---
