@@ -1,13 +1,17 @@
 # Abaikan semua file .log
 *.log
 
-# Abaikan folder sumber
+# Abaikan folder (contohnya: sumber)
 /sumber/
+/venv/
+/__pycache__/
 
 # Abaikan file konfigurasi lokal
 #config.local.json
 
-# Abaikan semua file di folder sumber
+# Abaikan semua file di folder (contohnya: sumber)
 sumber/
+venv/
+__pycache__/
 
 .env 

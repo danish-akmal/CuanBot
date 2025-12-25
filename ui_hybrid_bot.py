@@ -1,5 +1,5 @@
 """ui_hybrid_bot.py
-UI-CLI minimalis untuk monitoring dan (opsional) menjalankan hybrid_bot_v7_patched.py.
+UI-CLI minimalis untuk monitoring dan menjalankan hybrid_bot_v7_patched.py.
 
 Menampilkan:
 - Status Bot
@@ -33,6 +33,10 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import hybrid_bot_v7_patched as bot
+
+from dotenv import load_dotenv
+
+load_dotenv()  # otomatis cari dan baca file .env di folder project
 
 WIB = timezone(timedelta(hours=7))
 
@@ -365,7 +369,7 @@ def render(start_ts):
     conn = check_indodax_connection(ex)
 
     clear_screen()
-    print('     ╔[== HYBRID BOT v7 ==]╗')
+    print('     ╔[==  CuanBot v.1  ==]╗')
     print('     ╚[===================]╝')
     print(f"WIB: {wib_ts()} | Uptime: {uptime}s")
     print(f"Koneksi Indodax    : {conn['msg']}")

@@ -15,78 +15,86 @@ import time
 import requests
 import json
 import os
+import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from dotenv import load_dotenv
 
 load_dotenv()  # otomatis cari dan baca file .env di folder project
-# ==============================================================================
-# --- PENGATURAN UTAMA BOT (SILAKAN UBAH DI SINI) ---
-# ==============================================================================
-
-# --- KONEKSI & KUNCI API (DIBACA DARI ENVIRONMENT VARIABLES) ---
-# PERUBAHAN: Kunci API tidak lagi ditulis di sini. Bot akan membacanya dari pengaturan server.
-INDODAX_API_KEY = os.environ.get("INDODAX_API_KEY")
-INDODAX_API_SECRET = os.environ.get("INDODAX_API_SECRET")
-COINMARKETCAL_API_KEY = os.environ.get('COINMARKETCAL_API_KEY')
-
-# --- PENGATURAN TELEGRAM (DIBACA DARI ENVIRONMENT VARIABLES) ---
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-# --- MANAJEMEN MODAL & RISIKO ---
-MODAL_PER_COIN_IDR = 10500
-MAX_OPEN_POSITIONS = 5
-ATR_MULTIPLIER_FOR_SL = 2.0
-
-# --- MANAJEMEN PORTOFOLIO & SEKTOR ---
-SECTOR_MAPPING = {
-    'DOGE/IDR': 'MEME', 'SHIB/IDR': 'MEME', 'PEPE/IDR': 'MEME',
-    'SOL/IDR': 'LAYER1', 'ETH/IDR': 'LAYER1', 'ADA/IDR': 'LAYER1',
-    'POL/IDR': 'LAYER2', 'OP/IDR': 'LAYER2',
-    'FET/IDR': 'AI',
-}
-MAX_POSITIONS_PER_SECTOR = {'MEME': 2, 'DEFAULT': 3}
-
-# --- PENGATURAN STRATEGI KELUAR (EXIT STRATEGY) ---
-TAKE_PROFIT_1_RR = 1.5
-TRAILING_STOP_PERCENT = 0.05
-
-# --- PENGATURAN STRATEGI & FILTER ---
-H1_TIMEFRAME = '1h'
-M15_TIMEFRAME = '15m'
-H1_EMA_PERIOD = 50
-M15_EMA_FAST = 13
-M15_EMA_SLOW = 21
-VOLUME_AVG_PERIOD = 20
-ATR_PERIOD = 14
-STOCH_RSI_PERIOD = 14
-
-# --- MODE OPERASIONAL ---
-# PERUBAHAN: Mode simulasi dan filter BTC bisa diatur melalui Environment Variables juga.
-# Jika tidak diatur, akan menggunakan nilai default di bawah ini.
-SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() in ('true', '1', 't')
-ENABLE_BTC_FILTER = os.environ.get('ENABLE_BTC_FILTER', 'False').lower() in ('true', '1', 't')
-STATE_FILE = 'active_positions.json'
-STATUS_UPDATE_INTERVAL = 3
-SCAN_OPPORTUNITIES_INTERVAL = 5
 
 # ==============================================================================
-# --- KELAS UTAMA BOT (Logika trading tidak berubah dari v6.1) ---
+# --- CONFIGURATION CLASS ---
 # ==============================================================================
 
-# --- Logging sederhana ke file ---
-LOG_FILE = os.environ.get('BOT_LOG_FILE', 'bot_v7_log.csv')
+@dataclass
+class BotConfig:
+    """Configuration class for the trading bot."""
+    # API Credentials
+    indodax_api_key: Optional[str] = None
+    indodax_api_secret: Optional[str] = None
+    coinmarketcal_api_key: Optional[str] = None
 
-def _log_event(event_type, pair='', message='', data=None):
-    try:
-        import csv
-        exists = os.path.exists(LOG_FILE)
-        with open(LOG_FILE, 'a', newline='', encoding='utf-8') as f:
-            w = csv.writer(f)
-            if not exists:
-                w.writerow(['utc_time','event','pair','message','data'])
-            w.writerow([datetime.utcnow().isoformat(timespec='seconds'), event_type, pair, message, json.dumps(data, ensure_ascii=False) if data else '' ])
-    except Exception:
-        pass
+    # Telegram Settings
+    telegram_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+
+    # Risk Management
+    modal_per_coin_idr: float = 10500
+    max_open_positions: int = 5
+    atr_multiplier_for_sl: float = 2.0
+
+    # Portfolio Management
+    sector_mapping: Dict[str, str] = None
+    max_positions_per_sector: Dict[str, int] = None
+
+    # Exit Strategy
+    take_profit_1_rr: float = 1.5
+    trailing_stop_percent: float = 0.05
+
+    # Strategy Settings
+    h1_timeframe: str = '1h'
+    m15_timeframe: str = '15m'
+    h1_ema_period: int = 50
+    m15_ema_fast: int = 13
+    m15_ema_slow: int = 21
+    volume_avg_period: int = 20
+    atr_period: int = 14
+    stoch_rsi_period: int = 14
+
+    # Operational Modes
+    simulation_mode: bool = False
+    virtual_initial_idr: float = 1000000.0
+    enable_btc_filter: bool = False
+    state_file: str = 'active_positions.json'
+    status_update_interval: int = 3
+    scan_opportunities_interval: int = 5
+    log_file: str = 'bot_v7_log.csv'
+
+    def __post_init__(self):
+        if self.sector_mapping is None:
+            self.sector_mapping = {
+                'DOGE/IDR': 'MEME', 'SHIB/IDR': 'MEME', 'PEPE/IDR': 'MEME',
+                'SOL/IDR': 'LAYER1', 'ETH/IDR': 'LAYER1', 'ADA/IDR': 'LAYER1',
+                'POL/IDR': 'LAYER2', 'OP/IDR': 'LAYER2',
+                'FET/IDR': 'AI',
+            }
+        if self.max_positions_per_sector is None:
+            self.max_positions_per_sector = {'MEME': 2, 'DEFAULT': 3}
+
+def load_config() -> BotConfig:
+    """Load configuration from environment variables."""
+    return BotConfig(
+        indodax_api_key=os.environ.get("INDODAX_API_KEY"),
+        indodax_api_secret=os.environ.get("INDODAX_API_SECRET"),
+        coinmarketcal_api_key=os.environ.get('COINMARKETCAL_API_KEY'),
+        telegram_token=os.environ.get("TELEGRAM_TOKEN"),
+def _log_event(event_type: str, pair: str = '', message: str = '', data: Optional[Dict[str, Any]] = None) -> None:
+    """Log event with structured data."""
+    log_message = f"{event_type} - {pair} - {message}"
+    if data:
+        log_message += f" - {json.dumps(data, ensure_ascii=False)}"
+    logger.info(log_message)
 
 
 class ProfessionalBot:
@@ -103,15 +111,19 @@ class ProfessionalBot:
         self.all_markets = self._fetch_all_markets()
         self.idr_markets = [m for m in self.all_markets if '/IDR' in m and self.all_markets.get(m, {}).get('active', False)]
         self.active_positions = self._load_state()
+        # --- SIMULASI: saldo virtual (hanya dipakai saat SIMULATION_MODE) ---
+        self.virtual_idr = VIRTUAL_INITIAL_IDR if SIMULATION_MODE else None
+
         self.cycle_counter = 0
         print("[ok] Bot Profesional v7.0 (Server Ready) berhasil diinisialisasi.")
         self.send_telegram_message(
             f"🚀 **Bot Profesional v7.0 (Server Ready) Dimulai**\n\n"
-            f"Mode: `{'Simulasi' if SIMULATION_MODE else '🔴 LIVE TRADING'}`\n"
+            f"Mode: `{'🔵 Simulasi' if SIMULATION_MODE else '🔴 LIVE TRADING'}`\n"
             f"Filter BTC Aktif: `{'Ya' if ENABLE_BTC_FILTER else 'Tidak'}`\n"
             f"Modal per Trade: `Rp {MODAL_PER_COIN_IDR:,.0f}`"
         )
         self.send_manual_portfolio_update()
+        self.send_account_status_line()
 
     def _safe_amount(self, pair, amount):
         # Clamp amount to market precision and limits when possible
@@ -256,6 +268,16 @@ class ProfessionalBot:
             _log_event('SKIP_TRADE', pair, why, {'entry_price': entry_price, 'amount': amount_to_buy})
             return
 
+        # --- SIMULASI: cek & potong saldo virtual saat BUY ---
+        if SIMULATION_MODE:
+            est_cost = float(entry_price) * float(amount_to_buy)
+            if est_cost > float(self.virtual_idr):
+                _log_event('SKIP_TRADE', pair, 'virtual_idr tidak cukup', {'virtual_idr': self.virtual_idr, 'est_cost': est_cost})
+                return
+            self.virtual_idr -= est_cost
+            _log_event('SIM_VIRTUAL_BUY', pair, 'virtual_idr deducted', {'virtual_idr': self.virtual_idr, 'cost': est_cost})
+
+
         if not SIMULATION_MODE:
             try:
                 order = self.indodax.create_limit_buy_order(pair, amount_to_buy, entry_price)
@@ -295,6 +317,12 @@ class ProfessionalBot:
 
     def scale_out_position(self, position, current_price):
         amount_to_sell = self._safe_amount(position['pair'], position['amount'] / 2)
+        # --- SIMULASI: kredit saldo virtual saat jual 50% (TP1) ---
+        if SIMULATION_MODE:
+            proceeds = float(current_price) * float(amount_to_sell)
+            self.virtual_idr += proceeds
+            _log_event('SIM_VIRTUAL_SELL_TP1', position['pair'], 'virtual_idr credited', {'virtual_idr': self.virtual_idr, 'proceeds': proceeds})
+
         if not SIMULATION_MODE:
             try:
                 order = self.indodax.create_market_sell_order(position['pair'], amount_to_sell)
@@ -318,6 +346,12 @@ class ProfessionalBot:
             except Exception as e:
                 self.handle_error(f"Gagal menutup posisi {position['pair']}: {e}")
                 return
+        # --- SIMULASI: kredit saldo virtual saat close posisi ---
+        if SIMULATION_MODE:
+            proceeds = float(exit_price) * float(amount)
+            self.virtual_idr += proceeds
+            _log_event('SIM_VIRTUAL_SELL_CLOSE', position['pair'], 'virtual_idr credited', {'virtual_idr': self.virtual_idr, 'proceeds': proceeds})
+
         pnl = ((exit_price - position['entry_price']) / position['entry_price']) * 100
         icon = "🔴" if pnl < 0 else "🟢"
         message = (f"{icon} **Posisi Ditutup ({reason})**\n\n"
@@ -385,13 +419,48 @@ class ProfessionalBot:
         with open(STATE_FILE, 'w') as f:
             data_to_save = positions if positions is not None else self.active_positions
             json.dump(data_to_save, f, indent=4)
+    
+    def _virtual_equity_idr(self):
+        # Equity simulasi = saldo IDR virtual + nilai market semua posisi bot (mark-to-market)
+            if not SIMULATION_MODE:
+                return None
+            equity = float(getattr(self, 'virtual_idr', 0.0) or 0.0)
+            for pos in self.active_positions:
+                try:
+                    last = float(self.indodax.fetch_ticker(pos['pair'])['last'])
+                    equity += float(pos['amount']) * last
+                except Exception:
+                    pass
+            return equity
 
+    
     def send_status_update(self):
         if not self.active_positions:
             message = "[ok] **Laporan Status Bot**\n\nTidak ada posisi aktif yang dikelola bot."
             self.send_telegram_message(message)
             return
         summary_message = "📊 **Laporan Status Posisi Bot**\n\n"
+        # Baris status akun untuk laporan berkala
+        if SIMULATION_MODE:
+            veq = self._virtual_equity_idr()
+            summary_message += f"🏦 Status Akun (SIM): Virtual IDR `Rp {self.virtual_idr:,.0f}`\n"
+            if veq is not None:
+                summary_message += f"🏦 Virtual Equity: `Rp {veq:,.0f}`\n\n"
+        else:
+            try:
+                bal = self.indodax.fetch_balance()
+                idr_free = float((bal.get('free', {}) or {}).get('IDR', 0) or 0)
+                idr_total = float((bal.get('total', {}) or {}).get('IDR', 0) or 0)
+                summary_message += f"🏦 Status Akun (LIVE): IDR free `Rp {idr_free:,.0f}` | IDR total `Rp {idr_total:,.0f}`\n\n"
+            except Exception as e:
+                summary_message += f"🏦 Status Akun (LIVE): gagal fetch_balance ({e})\n\n"
+
+        if SIMULATION_MODE:
+            veq = self._virtual_equity_idr()
+            summary_message += f"💼 Virtual IDR: `Rp {self.virtual_idr:,.0f}`\n"
+            if veq is not None:
+                summary_message += f"📈 Virtual Equity: `Rp {veq:,.0f}`\n\n"
+
         total_pnl_idr = 0
         for pos in self.active_positions:
             try:
@@ -478,18 +547,45 @@ class ProfessionalBot:
             self.send_telegram_message(message)
         except Exception as e:
             self.handle_error(f"Gagal mengirim laporan portfolio manual: {e}")
+    
+    def send_account_status_line(self):
+            try:
+                if SIMULATION_MODE:
+                    veq = self._virtual_equity_idr()
+                    msg = f"🏦 Status Akun (SIM): Virtual IDR={self.virtual_idr:,.0f}"
+                    if veq is not None:
+                        msg += f" | Virtual Equity={veq:,.0f}"
+                    self.send_telegram_message(msg)
+                    _log_event('ACCOUNT_STATUS', '', 'sim_account_status', {'virtual_idr': self.virtual_idr, 'virtual_equity': veq})
+                else:
+                    bal = self.indodax.fetch_balance()
+                    idr_free = float((bal.get('free', {}) or {}).get('IDR', 0) or 0)
+                    idr_total = float((bal.get('total', {}) or {}).get('IDR', 0) or 0)
+                    msg = f"🏦 Status Akun (LIVE): IDR free={idr_free:,.0f} | IDR total={idr_total:,.0f}"
+                    self.send_telegram_message(msg)
+                    _log_event('ACCOUNT_STATUS', '', 'live_account_status', {'idr_free': idr_free, 'idr_total': idr_total})
+            except Exception as e:
+                _log_event('ACCOUNT_STATUS_ERROR', '', str(e))
 
+    
     def send_telegram_message(self, message):
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': message, 'parse_mode': 'Markdown'}
-        try:
-            requests.post(url, json=payload)
-        except Exception as e:
-            print(f"  - Gagal mengirim notifikasi Telegram: {e}")
+            # Selalu tampilkan ke terminal juga (biar kelihatan saat bot dijalankan)
+            try:
+                print(message)
+            except Exception:
+                pass
 
-    def handle_error(self, error_message):
-        print(f"\n[error] ERROR: {error_message}")
-        self.send_telegram_message(f"[error] **ERROR KRITIS PADA BOT**\n`{error_message}`")
+            # Jika telegram tidak diset, cukup berhenti di sini
+            if not getattr(self, 'telegram_enabled', False):
+                return
+
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': message, 'parse_mode': 'Markdown'}
+            try:
+                requests.post(url, json=payload)
+            except Exception as e:
+                print(f" - Gagal mengirim notifikasi Telegram: {e}")
+
 
 if __name__ == "__main__":
     bot = ProfessionalBot()
